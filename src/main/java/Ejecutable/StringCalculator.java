@@ -4,12 +4,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors; // Necesario para el refactor de delimitadores
+import java.util.stream.Collectors;
 
 public class StringCalculator {
     
     /**
-     * Clase auxiliar (record) que encapsula el regex del delimitador y la cadena de números restante.
+     * Clase auxiliar para retornar la configuración del delimitador y la cadena de números restante.
      */
     private static class DelimiterConfig {
         final String regex;
@@ -21,29 +21,28 @@ public class StringCalculator {
         }
     }
     
-   
+    // ==========================================================
+    // MÉTODO PRINCIPAL (ORQUESTADOR)
+    // ==========================================================
+    
     public int add(String numbers) {
-        // 1. Caso base: Cadena nula o vacía
         if (numbers == null || numbers.isEmpty()) {
             return 0;
         }
         
-        // 2. CONFIGURACIÓN: Obtiene el delimitador y la cadena de números (Refactor).
+        // 1. CONFIGURACIÓN: Obtiene el delimitador (incluyendo personalizado, coma, o salto de línea).
         DelimiterConfig config = getDelimiterConfig(numbers);
-        
-        // Divide los números usando el regex configurado.
         String[] nums = splitNumbers(config.numbers, config.regex);
         
-        // 3. PROCESAMIENTO: Recorre y suma los números.
+        // 2. PROCESAMIENTO: Recorre y suma los números, registrando negativos.
         StringBuilder negativeNumbers = new StringBuilder();
         int sum = 0;
         
         for (String num : nums) {
-            // La lógica de suma, negativos e ignorar > 1000 está en el auxiliar (Refactor).
             sum += processNumber(num, negativeNumbers);
         }
         
-        // 4. VALIDACIÓN FINAL: Lanza excepción si hay negativos.
+        // 3. VALIDACIÓN FINAL: Lanza excepción si se encontraron negativos.
         if (negativeNumbers.length() > 0) {
             throw new IllegalArgumentException("negativos no permitidos: " + negativeNumbers.toString());
         }
@@ -51,15 +50,26 @@ public class StringCalculator {
         return sum;
     }
 
+    // ==========================================================
+    // MÉTODOS AUXILIARES
+    // ==========================================================
+    
+    /**
+     * Extrae el patrón de delimitador (regex) y la parte de la cadena que contiene los números.
+     * Soporta: por defecto (,|\\n), custom simple (//;\n), custom múltiple (//[d1][d2]\n)
+     */
     private DelimiterConfig getDelimiterConfig(String numbers) {
+        // Detección de delimitador personalizado (Iteración 6)
         if (numbers.startsWith("//")) {
             int delimiterEndIndex = numbers.indexOf("\n");
             
             if (delimiterEndIndex != -1) {
                 String delimiterSection = numbers.substring(2, delimiterEndIndex);
                 
+                // Lógica para manejar delimitadores MÚLTIPLES o simples entre corchetes (del iteración avanzada)
                 if (delimiterSection.startsWith("[")) {
                     List<String> delimiters = new ArrayList<>();
+                    // Patrón para encontrar todos los [delimitadores]
                     Pattern p = Pattern.compile("\\[(.*?)\\]");
                     Matcher m = p.matcher(delimiterSection);
                     
@@ -70,25 +80,32 @@ public class StringCalculator {
                     if (!delimiters.isEmpty()) {
                         // Construir el regex final: Delim1|Delim2|Delim3
                         String regex = delimiters.stream()
-                            .map(Pattern::quote) 
-                            .collect(Collectors.joining("|")); 
+                            .map(Pattern::quote) // Escapar caracteres especiales de regex
+                            .collect(Collectors.joining("|")); // Unir con OR lógico
                         
                         String remainingNumbers = numbers.substring(delimiterEndIndex + 1);
                         return new DelimiterConfig(regex, remainingNumbers);
                     }
                 } else {
+                    // Lógica para un solo delimitador sin corchetes (ej: //;\n1;2)
                     String custom = delimiterSection;
-                    String regex = Pattern.quote(custom);
+                    String regex = Pattern.quote(custom); // Usar Pattern.quote para escapar caracteres
                     String remainingNumbers = numbers.substring(delimiterEndIndex + 1);
                     return new DelimiterConfig(regex, remainingNumbers);
                 }
             }
         }
         
-        // Configuración por defecto (coma o salto de línea)
+        // Configuración por defecto (Iteración 5: Coma O Salto de línea)
         return new DelimiterConfig(",|\\n", numbers);
     }
     
+    /**
+     * Procesa un solo número: lo suma si es <= 1000 y registra si es negativo (Iteración 7).
+     * @param num La subcadena del número a procesar.
+     * @param negativeNumbers Builder para registrar los números negativos encontrados.
+     * @return El valor del número a sumar (o 0 si es inválido o > 1000).
+     */
     private int processNumber(String num, StringBuilder negativeNumbers) {
         if (num == null || num.trim().isEmpty()) {
             return 0;
@@ -101,7 +118,7 @@ public class StringCalculator {
             return 0;
         }
         
-        // Registrar Negativos
+        // Registrar Negativos (Iteración 7)
         if (currentNumber < 0) {
             if (negativeNumbers.length() > 0) {
                 negativeNumbers.append(", ");
@@ -109,7 +126,7 @@ public class StringCalculator {
             negativeNumbers.append(currentNumber);
         }
         
-        // Regla de ignorar > 1000
+        // Regla de ignorar > 1000 (Iteración EXTRA)
         if (currentNumber <= 1000) {
             return currentNumber;
         }
@@ -117,6 +134,9 @@ public class StringCalculator {
         return 0;
     }
 
+    /**
+     * Wrapper simple para el método split.
+     */
     private String[] splitNumbers(String numbers, String regex) {
         if (numbers == null) {
             return new String[0];
